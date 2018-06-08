@@ -1,0 +1,5 @@
+# Set the necessary paths
+directories:
+  DATA_DIRECTORY: '/media/data/bruppik/cvg11/Pix4D/example_cadastre'
+  MODEL_WEIGHTS_DIR: '/media/data/bruppik/pytorch-deeplab-resnet'
+  RESTORE_FROM: '/media/data/bruppik/pytorch-deeplab-resnet/VOC12_scenes_16000.pth'
