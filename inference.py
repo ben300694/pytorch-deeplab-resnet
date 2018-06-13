@@ -1,3 +1,4 @@
+from __future__ import print_function
 import scipy
 from scipy import ndimage
 import cv2
@@ -10,6 +11,8 @@ import torch
 from torch.autograd import Variable
 import torchvision.models as models
 import torch.nn.functional as F
+from typing import List
+
 import deeplab_resnet
 from collections import OrderedDict
 import os
@@ -25,7 +28,8 @@ from docopt import docopt
 full_path = os.path.realpath(__file__)
 config = yaml.safe_load(open(os.path.dirname(full_path) + '/config.yml'))
 
-docstr = """Evaluate ResNet-DeepLab trained on scenes (VOC 2012),a total of 21 labels including background
+docstr = """Perform inference of ResNet-DeepLab trained on scenes (VOC 2012), a total of 21 labels including background,
+            on images of your choice
 
 Usage: 
     evalpyt.py [options]
@@ -41,12 +45,12 @@ Options:
 """
 
 args = docopt(docstr, version='v0.1')
-print args
+print(args)
 
 
 def get_iou(pred, gt):
     if pred.shape != gt.shape:
-        print 'pred shape', pred.shape, 'gt shape', gt.shape
+        print('pred shape', pred.shape, 'gt shape', gt.shape)
     assert (pred.shape == gt.shape)
     gt = gt.astype(np.float32)
     pred = pred.astype(np.float32)
@@ -72,56 +76,63 @@ def get_iou(pred, gt):
 
 
 gpu0 = int(args['--gpu0'])
-im_path = args['--testIMpath']
+print('Using gpu0 =', gpu0, 'Device name:',torch.cuda.get_device_name(gpu0))
+# im_path = args['--testIMpath']
+im_path = config['directories']['IMAGE_DIR']
 
 model = deeplab_resnet.Res_Deeplab(int(args['--NoLabels']))
+model.train(False)
 model.eval()
-counter = 0
 model.cuda(gpu0)
+
 snapPrefix = args['--snapPrefix']
 gt_path = args['--testGTpath']
 
-img_list = open('data/list/val.txt').readlines()
+img_list = open(config['directories']['lists']['DATA_INFERENCE_LIST_PATH']).readlines()  # type: List[str]
+image_format_suffix = '.png'
+print(img_list)
 
-MODEL_WEIGHTS = config['directories']['RESTORE_FROM']
+MODEL_WEIGHTS = config['RESTORE_FROM']
 
 saved_state_dict = torch.load(MODEL_WEIGHTS)
-if counter == 0:
-    print snapPrefix
-counter += 1
 model.load_state_dict(saved_state_dict)
 
-pytorch_list = [];
 for i in img_list:
-    img = np.zeros((513, 513, 3));
+    img = np.zeros((960, 1280, 3))
+    img_path = os.path.join(im_path, i[:-1] + image_format_suffix)
+    print('Working on ', img_path)
 
-    img_temp = cv2.imread(os.path.join(im_path, i[:-1] + '.jpg')).astype(float)
+    img_temp = cv2.imread(img_path).astype(float)
     img_original = img_temp
+    # Subtract mean from image
     img_temp[:, :, 0] = img_temp[:, :, 0] - 104.008
     img_temp[:, :, 1] = img_temp[:, :, 1] - 116.669
     img_temp[:, :, 2] = img_temp[:, :, 2] - 122.675
     img[:img_temp.shape[0], :img_temp.shape[1], :] = img_temp
-    gt = cv2.imread(os.path.join(gt_path, i[:-1] + '.png'), 0)
-    gt[gt == 255] = 0
+    # gt groundtruth
+    # gt = cv2.imread(os.path.join(gt_path, i[:-1] + image_format_suffix), 0)
+    # gt[gt == 255] = 0
 
-    output = model(
-        Variable(torch.from_numpy(img[np.newaxis, :].transpose(0, 3, 1, 2)).float(), volatile=True).cuda(gpu0))
-    interp = nn.UpsamplingBilinear2d(size=(513, 513))
-    output = interp(output[3]).cpu().data[0].numpy()
-    output = output[:, :img_temp.shape[0], :img_temp.shape[1]]
+    with torch.no_grad():
+        input_var = Variable(torch.from_numpy(img[np.newaxis, :].transpose(0, 3, 1, 2)).float()).cuda(gpu0)
+        output = model(input_var)
 
-    output = output.transpose(1, 2, 0)
-    output = np.argmax(output, axis=2)
-    if args['--visualize']:
-        plt.subplot(3, 1, 1)
-        plt.imshow(img_original)
-        plt.subplot(3, 1, 2)
-        plt.imshow(gt)
-        plt.subplot(3, 1, 3)
-        plt.imshow(output)
-        plt.show()
+        print(output.size())
 
-    iou_pytorch = get_iou(output, gt)
-    pytorch_list.append(iou_pytorch)
+    # interp = nn.UpsamplingBilinear2d(size=(513, 513))
+    # output = interp(output[3]).cpu().data[0].numpy()
+    # output = output[:, :img_temp.shape[0], :img_temp.shape[1]]
+    #
+    # output = output.transpose(1, 2, 0)
+    # output = np.argmax(output, axis=2)
+    #
+    #
+    # plt.subplot(3, 1, 1)
+    # plt.imshow(img_original)
+    # # plt.subplot(3, 1, 2)
+    # # plt.imshow(gt)
+    # plt.subplot(3, 1, 3)
+    # plt.imshow(output)
+    # plt.show()
 
-print 'pytorch', np.sum(np.asarray(pytorch_list)) / len(pytorch_list)
+    # iou_pytorch = get_iou(output, gt)

@@ -4,6 +4,7 @@ This file is used to create the hdf5 file (cat.h5) which is used by convert_deep
 import cv2
 import h5py, os
 import numpy as np
+
 def preprocess(out):
     #"""Changes RGB [0,1] valued image to BGR [0,255] with mean subtracted."""
     #out = np.copy(img) * 255.0

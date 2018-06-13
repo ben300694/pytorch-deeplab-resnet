@@ -7,7 +7,7 @@ The architecture of deepLab-ResNet has been replicated exactly as it is from the
 
 You will need the following python packages
 ```
-matplotlib scipy pytorch torchvision opencv docopt tqdm
+matplotlib scipy pytorch torchvision opencv docopt tqdm typing
 ```
 
 ## Updates
